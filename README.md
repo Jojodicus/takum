@@ -50,7 +50,7 @@ takum16 n = takum16::nar();            // Not-a-Real (similar to NaN)
 // Queries
 a.is_zero();    // true
 n.is_nar();     // true
-a.bits();       // raw bit pattern as uint32_t
+a.bits();       // raw bit pattern as uint64_t
 
 // Conversion
 double  v = b.to_double();
