@@ -172,12 +172,12 @@ TEST_CASE("Arithmetic", "[arith]") {
 
 TEST_CASE("Integer conversion", "[int]") {
     SECTION("42") {
-        takum16 t(static_cast<int64_t>(42));
+        takum16 t(42ll);
         REQUIRE(t.to_int64() == 42);
     }
 
     SECTION("-7") {
-        takum16 t(static_cast<int64_t>(-7));
+        takum16 t(-7ll);
         REQUIRE(t.to_int64() == -7);
     }
 
@@ -186,7 +186,7 @@ TEST_CASE("Integer conversion", "[int]") {
     }
 
     SECTION("explicit cast operator") {
-        takum16 t(static_cast<int64_t>(100));
+        takum16 t(100ll);
         REQUIRE(static_cast<int64_t>(t) == 100);
     }
 }

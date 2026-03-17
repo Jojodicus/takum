@@ -33,12 +33,12 @@ Custom widths from 12 to 32 are also available via `Takum<N>`.
 
 ```cpp
 // Construction
-takum16 a;                          // zero
-takum16 b(3.14);                    // from double
-takum16 c(static_cast<int64_t>(7)); // from integer
+takum16 a;          // zero
+takum16 b(3.14);    // from double
+takum16 c(7ll);     // from integer (has to be 64 bit)
 takum16 d = takum16::from_bits(0x3C00);
 takum16 z = takum16::zero();
-takum16 n = takum16::nar();         // Not-a-Real (analogous to NaN)
+takum16 n = takum16::nar();    // Not-a-Real (similar to NaN)
 
 // Queries
 a.is_zero();    // true
