@@ -7,9 +7,9 @@
 
 namespace takum {
 
-template<unsigned N>  // 12 <= N <= 32
+template<unsigned N>  // 12 <= N <= 48
 class Takum {
-    static_assert(N >= 12 && N <= 32, "Takum width N must be in [12, 32]");
+    static_assert(N >= 12 && N <= 48, "Takum width N must be in [12, 48]");
 
 public:
     Takum() noexcept : bits_(0) {}
@@ -18,7 +18,7 @@ public:
 
     explicit Takum(int64_t v) : bits_(encode(static_cast<double>(v))) {}
 
-    static Takum from_bits(uint32_t b) noexcept {
+    static Takum from_bits(uint64_t b) noexcept {
         Takum t;
         t.bits_ = b & mask();
         return t;
@@ -28,15 +28,15 @@ public:
 
     static Takum nar() noexcept {
         Takum t;
-        t.bits_ = 1u << (N - 1);
+        t.bits_ = uint64_t(1) << (N - 1);
         return t;
     }
 
     bool is_zero() const noexcept { return bits_ == 0; }
 
-    bool is_nar() const noexcept { return bits_ == (1u << (N - 1)); }
+    bool is_nar() const noexcept { return bits_ == (uint64_t(1) << (N - 1)); }
 
-    uint32_t bits() const noexcept { return bits_; }
+    uint64_t bits() const noexcept { return bits_; }
 
     double to_double() const noexcept { return decode(bits_); }
 
@@ -97,17 +97,17 @@ public:
     }
 
 private:
-    uint32_t bits_;
+    uint64_t bits_;
 
-    // Sign-extend the N-bit pattern to int32_t for total-order comparison.
-    int32_t signed_bits() const noexcept {
-        if (bits_ & (1u << (N - 1)))
-            return static_cast<int32_t>(bits_ | ~mask());
-        return static_cast<int32_t>(bits_);
+    // Sign-extend the N-bit pattern to int64_t for total-order comparison.
+    int64_t signed_bits() const noexcept {
+        if (bits_ & (uint64_t(1) << (N - 1)))
+            return static_cast<int64_t>(bits_ | ~mask());
+        return static_cast<int64_t>(bits_);
     }
 
-    static constexpr uint32_t mask() {
-        return (N == 32) ? 0xFFFFFFFFu : ((1u << N) - 1u);
+    static constexpr uint64_t mask() {
+        return (N == 64) ? ~uint64_t(0) : ((uint64_t(1) << N) - 1u);
     }
 
     static int ilog2(unsigned x) {
@@ -115,8 +115,8 @@ private:
         return 31 - __builtin_clz(x);
     }
 
-    static double decode(uint32_t bits) noexcept {
-        const uint32_t sign_bit = 1u << (N - 1);
+    static double decode(uint64_t bits) noexcept {
+        const uint64_t sign_bit = uint64_t(1) << (N - 1);
 
         unsigned S = (bits >> (N - 1)) & 1u;
 
@@ -130,11 +130,11 @@ private:
         unsigned r = (D == 0) ? (7u - R) : R;    // actual regime size in [0,7]
         int      p = static_cast<int>(N) - static_cast<int>(r) - 5; // fraction bits
 
-        uint32_t C_mask = (r > 0) ? ((1u << r) - 1u) : 0u;
-        uint32_t F_mask = (p > 0) ? ((1u << p) - 1u) : 0u;
+        uint64_t C_mask = (r > 0) ? ((uint64_t(1) << r) - 1u) : 0u;
+        uint64_t F_mask = (p > 0) ? ((uint64_t(1) << p) - 1u) : 0u;
 
-        uint32_t C_field = (bits >> p) & C_mask;
-        uint32_t F_field =  bits       & F_mask;
+        uint64_t C_field = (bits >> p) & C_mask;
+        uint64_t F_field =  bits       & F_mask;
 
         int c;
         if (D == 0) {
@@ -151,10 +151,12 @@ private:
         return mantissa * std::ldexp(1.0, e);
     }
 
-    static uint32_t encode(double v) noexcept {
+    static uint64_t encode(double v) noexcept {
+        const uint64_t nar_bits = uint64_t(1) << (N - 1);
+
         // Special cases
         if (v == 0.0) return 0u;
-        if (std::isnan(v) || std::isinf(v)) return 1u << (N - 1);
+        if (std::isnan(v) || std::isinf(v)) return nar_bits;
 
         unsigned S;
         int e;
@@ -165,7 +167,6 @@ private:
             S = 0;
             int k;
             double m = std::frexp(v, &k);
-            // m in [0.5, 1.0), v = m * 2^k
             e = k - 1;
             f = 2.0 * m - 1.0;  // in [0, 1)
             c = e;
@@ -174,7 +175,6 @@ private:
             double av = -v;
             int k;
             double m = std::frexp(av, &k);
-            // av = m * 2^k, m in [0.5, 1.0)
             if (m == 0.5) {
                 // exact power of 2
                 e = k - 2;
@@ -187,7 +187,7 @@ private:
         }
 
         // Overflow / underflow → NaR
-        if (e < -255 || e > 254) return 1u << (N - 1);
+        if (e < -255 || e > 254) return nar_bits;
 
         // Find D, r, R, C_field from c
         unsigned D, r, R, C_field;
@@ -199,25 +199,22 @@ private:
             C_field = static_cast<unsigned>(c + (1 << (r + 1)) - 1);
         } else {
             D = 1;
-            if (c == 0) {
-                r = 0;
-            } else {
-                r = static_cast<unsigned>(ilog2(static_cast<unsigned>(c + 1)));
-            }
+            r = (c == 0) ? 0u : static_cast<unsigned>(ilog2(static_cast<unsigned>(c + 1)));
             R = r;
             C_field = static_cast<unsigned>(c) - ((1u << r) - 1u);
         }
 
         int p = static_cast<int>(N) - static_cast<int>(r) - 5;
-        uint32_t F_field = 0u;
+        uint64_t F_field = 0u;
         if (p > 0) {
-            F_field = static_cast<uint32_t>(f * static_cast<double>(1u << p));
-            uint32_t p_max = 1u << p;
+            F_field = static_cast<uint64_t>(f * std::ldexp(1.0, p));
+            uint64_t p_max = uint64_t(1) << p;
             if (F_field >= p_max) F_field = p_max - 1u;
         }
 
-        uint32_t bits = (S << (N - 1)) | (D << (N - 2)) | (R << (N - 5))
-                      | (C_field << p) | F_field;
+        uint64_t bits = (uint64_t(S) << (N - 1)) | (uint64_t(D) << (N - 2))
+                      | (uint64_t(R) << (N - 5)) | (uint64_t(C_field) << p)
+                      | F_field;
         bits &= mask();
         return bits;
     }
@@ -226,5 +223,6 @@ private:
 using takum12 = Takum<12>;
 using takum16 = Takum<16>;
 using takum32 = Takum<32>;
+using takum48 = Takum<48>;
 
 } // namespace takum

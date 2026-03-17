@@ -2,6 +2,12 @@
 
 C++ header-only library for *takum arithmetic*, a real number format defined in [arXiv:2404.18603](https://arxiv.org/abs/2404.18603). More specifically: **linear takums**.
 
+> [!IMPORTANT]
+> This library only directly implements encoding/decoding from and to fp64.
+> Arithmetic is entirely done using fp64.
+> For this reason, takum size is restricted to 48 bits (representable by fp64 without precision loss).
+> This repo is not for you if you require an implementation suitable for hardware synthesis.
+
 ## Quick Start
 
 Copy `src/takum.hpp` into your project (requires C++17) and include it:
@@ -25,20 +31,21 @@ std::cout << x / y;   // 0.75
 |---|---|---|
 | `takum12` | 12 bits | minimum width |
 | `takum16` | 16 bits | good general-purpose choice |
-| `takum32` | 32 bits | highest precision |
+| `takum32` | 32 bits | high precision |
+| `takum48` | 48 bits | highest precision |
 
-Custom widths from 12 to 32 are also available via `Takum<N>`.
+Custom widths from 12 to 48 are also available via `Takum<N>`.
 
 ## API
 
 ```cpp
 // Construction
-takum16 a;          // zero
-takum16 b(3.14);    // from double
-takum16 c(7ll);     // from integer (has to be 64 bit)
+takum16 a;                             // zero
+takum16 b(3.14);                       // from double
+takum16 c(static_cast<int64_t>(7);     // from integer
 takum16 d = takum16::from_bits(0x3C00);
 takum16 z = takum16::zero();
-takum16 n = takum16::nar();    // Not-a-Real (similar to NaN)
+takum16 n = takum16::nar();            // Not-a-Real (similar to NaN)
 
 // Queries
 a.is_zero();    // true
@@ -77,7 +84,8 @@ Tests use [Catch2](https://github.com/catchorg/Catch2) (fetched automatically by
 
 ### Linear Takum Encoding
 
-Defined for bit-length `n >= 12`. Fields are laid out MSB→LSB:
+Defined for bit-length `n >= 12` (For fewer bits, trailing "ghost-bits" are handled as `0` - not implemented here).
+Fields are laid out MSB→LSB:
 
 | sign | direction | regime | characteristic | fraction |
 |---|---|---|---|---|

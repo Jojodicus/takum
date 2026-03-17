@@ -172,12 +172,12 @@ TEST_CASE("Arithmetic", "[arith]") {
 
 TEST_CASE("Integer conversion", "[int]") {
     SECTION("42") {
-        takum16 t(42ll);
+        takum16 t(static_cast<int64_t>(42));
         REQUIRE(t.to_int64() == 42);
     }
 
     SECTION("-7") {
-        takum16 t(-7ll);
+        takum16 t(static_cast<int64_t>(-7));
         REQUIRE(t.to_int64() == -7);
     }
 
@@ -186,7 +186,7 @@ TEST_CASE("Integer conversion", "[int]") {
     }
 
     SECTION("explicit cast operator") {
-        takum16 t(100ll);
+        takum16 t(static_cast<int64_t>(100));
         REQUIRE(static_cast<int64_t>(t) == 100);
     }
 }
@@ -252,6 +252,7 @@ TEST_CASE("Width variants all compile and agree on 1.0", "[widths]") {
     takum12 t12(1.0);
     takum16 t16(1.0);
     takum32 t32(1.0);
+    takum48 t48(1.0);
 
     SECTION("takum12(1.0) decodes near 1.0") {
         REQUIRE(t12.to_double() == Approx(1.0).epsilon(1e-2));
@@ -262,9 +263,13 @@ TEST_CASE("Width variants all compile and agree on 1.0", "[widths]") {
     SECTION("takum32(1.0) decodes near 1.0") {
         REQUIRE(t32.to_double() == Approx(1.0).epsilon(1e-6));
     }
+    SECTION("takum48(1.0) decodes near 1.0") {
+        REQUIRE(t48.to_double() == Approx(1.0).epsilon(1e-9));
+    }
     SECTION("all agree") {
         REQUIRE(t12.to_double() == Approx(t16.to_double()).epsilon(1e-2));
         REQUIRE(t16.to_double() == Approx(t32.to_double()).epsilon(1e-3));
+        REQUIRE(t32.to_double() == Approx(t48.to_double()).epsilon(1e-6));
     }
 }
 
@@ -272,4 +277,56 @@ TEST_CASE("Width variants spot-check -2.0", "[widths]") {
     REQUIRE(takum12(-2.0).to_double() == Approx(-2.0).epsilon(1e-2));
     REQUIRE(takum16(-2.0).to_double() == Approx(-2.0).epsilon(1e-3));
     REQUIRE(takum32(-2.0).to_double() == Approx(-2.0).epsilon(1e-6));
+    REQUIRE(takum48(-2.0).to_double() == Approx(-2.0).epsilon(1e-9));
+}
+
+TEST_CASE("takum48 decode", "[decode][takum48]") {
+    auto check = [](double v) {
+        takum48 t(v);
+        REQUIRE_FALSE(t.is_nar());
+        REQUIRE(t.to_double() == Approx(v).epsilon(1e-9));
+    };
+
+    SECTION("1.0")  { check(1.0); }
+    SECTION("-1.0") { check(-1.0); }
+    SECTION("2.0")  { check(2.0); }
+    SECTION("-2.0") { check(-2.0); }
+    SECTION("0.5")  { check(0.5); }
+    SECTION("-0.5") { check(-0.5); }
+    SECTION("1.5")  { check(1.5); }
+    SECTION("-1.5") { check(-1.5); }
+    SECTION("pi")   { check(3.14159265358979); }
+}
+
+TEST_CASE("takum48 special values", "[special][takum48]") {
+    SECTION("zero") {
+        REQUIRE(takum48::zero().bits() == 0u);
+        REQUIRE(takum48::zero().is_zero());
+    }
+    SECTION("NaR bit pattern") {
+        REQUIRE(takum48::nar().bits() == (uint64_t(1) << 47));
+        REQUIRE(takum48::nar().is_nar());
+    }
+    SECTION("NaR is min of total order") {
+        takum48 n = takum48::nar();
+        takum48 one(1.0);
+        REQUIRE(n < one);
+        REQUIRE(n == n);
+    }
+}
+
+TEST_CASE("takum48 arithmetic", "[arith][takum48]") {
+    SECTION("1 + 1 == 2") {
+        REQUIRE((takum48(1.0) + takum48(1.0)).to_double() == Approx(2.0).epsilon(1e-9));
+    }
+    SECTION("pi round-trip") {
+        double pi = 3.14159265358979323846;
+        REQUIRE(takum48(pi).to_double() == Approx(pi).epsilon(1e-9));
+    }
+    SECTION("NaR propagates") {
+        REQUIRE((takum48::nar() + takum48(1.0)).is_nar());
+    }
+    SECTION("div by zero → NaR") {
+        REQUIRE((takum48(1.0) / takum48::zero()).is_nar());
+    }
 }
